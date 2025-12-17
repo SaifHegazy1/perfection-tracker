@@ -6,6 +6,7 @@ import { LogOut, User } from 'lucide-react';
 import SessionCard from './SessionCard';
 import LanguageToggle from './LanguageToggle';
 import logo from '@/assets/logo.jpg';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Demo session data with HW status
 // hwStatus: 'complete' (empty), 'notDone' (1), 'partial' (2), 'cheated' (3)
@@ -21,11 +22,34 @@ const demoSessions = [
 ];
 
 const StudentDashboard: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, logout } = useAuth();
 
   const totalPayment = demoSessions.reduce((sum, s) => sum + s.payment, 0);
   const attendedCount = demoSessions.filter(s => s.attended).length;
+
+  // Quiz marks chart data
+  const quizChartData = demoSessions
+    .filter(s => s.quizMark !== null)
+    .map(s => ({
+      name: `S${s.sessionNumber}`,
+      mark: s.quizMark,
+    }));
+
+  // HW status chart data
+  const hwStatusCounts = {
+    complete: demoSessions.filter(s => s.hwStatus === 'complete').length,
+    partial: demoSessions.filter(s => s.hwStatus === 'partial').length,
+    notDone: demoSessions.filter(s => s.hwStatus === 'notDone').length,
+    cheated: demoSessions.filter(s => s.hwStatus === 'cheated').length,
+  };
+
+  const hwPieData = [
+    { name: language === 'ar' ? 'مكتمل' : 'Complete', value: hwStatusCounts.complete, color: 'hsl(var(--success))' },
+    { name: language === 'ar' ? 'جزئي' : 'Partial', value: hwStatusCounts.partial, color: 'hsl(var(--warning))' },
+    { name: language === 'ar' ? 'لم يحل' : 'Not Done', value: hwStatusCounts.notDone, color: 'hsl(var(--destructive))' },
+    { name: language === 'ar' ? 'غش' : 'Cheated', value: hwStatusCounts.cheated, color: 'hsl(var(--muted-foreground))' },
+  ].filter(item => item.value > 0);
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -80,6 +104,70 @@ const StudentDashboard: React.FC = () => {
               <p className="text-2xl font-bold text-accent">{totalPayment}</p>
               <p className="text-xs text-muted-foreground">{t('payment')} ({t('egp')})</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Quiz Marks Chart */}
+        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+          <h3 className="text-lg font-semibold text-foreground mb-4">
+            {language === 'ar' ? 'درجات الكويز' : 'Quiz Marks'}
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={quizChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                <YAxis stroke="hsl(var(--muted-foreground))" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    color: 'hsl(var(--foreground))'
+                  }} 
+                />
+                <Bar dataKey="mark" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* HW Status Chart */}
+        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+          <h3 className="text-lg font-semibold text-foreground mb-4">
+            {language === 'ar' ? 'حالة الواجبات' : 'Homework Status'}
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={hwPieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                  label={({ name, value }) => `${name}: ${value}`}
+                >
+                  {hwPieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    color: 'hsl(var(--foreground))'
+                  }} 
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
