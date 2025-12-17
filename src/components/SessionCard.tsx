@@ -1,6 +1,8 @@
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { CheckCircle2, XCircle, Clock, DollarSign, GraduationCap, BookOpen } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, DollarSign, GraduationCap, BookOpen, AlertTriangle, FileX, FileCheck } from 'lucide-react';
+
+type HwStatus = 'complete' | 'notDone' | 'partial' | 'cheated';
 
 interface SessionData {
   sessionNumber: number;
@@ -10,6 +12,7 @@ interface SessionData {
   quizMark: number | null;
   time: string | null;
   finishTime: string | null;
+  hwStatus: HwStatus | null;
 }
 
 interface SessionCardProps {
@@ -19,6 +22,23 @@ interface SessionCardProps {
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, index }) => {
   const { t } = useLanguage();
+
+  const getHwStatusDisplay = (status: HwStatus | null) => {
+    switch (status) {
+      case 'complete':
+        return { text: t('hwComplete'), color: 'text-success', bg: 'bg-success/20', icon: FileCheck };
+      case 'notDone':
+        return { text: t('hwNotDone'), color: 'text-destructive', bg: 'bg-destructive/20', icon: FileX };
+      case 'partial':
+        return { text: t('hwPartial'), color: 'text-warning', bg: 'bg-warning/20', icon: AlertTriangle };
+      case 'cheated':
+        return { text: t('hwCheated'), color: 'text-destructive', bg: 'bg-destructive/20', icon: XCircle };
+      default:
+        return null;
+    }
+  };
+
+  const hwDisplay = getHwStatusDisplay(session.hwStatus);
 
   return (
     <div 
@@ -69,7 +89,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, index }) => {
             {t('examMark')}
           </div>
           <p className="font-semibold text-foreground">
-            {session.examMark !== null ? `${session.examMark}%` : '-'}
+            {session.examMark !== null ? session.examMark : '-'}
           </p>
         </div>
 
@@ -80,7 +100,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, index }) => {
             {t('quizMark')}
           </div>
           <p className="font-semibold text-foreground">
-            {session.quizMark !== null ? `${session.quizMark}%` : '-'}
+            {session.quizMark !== null ? session.quizMark : '-'}
           </p>
         </div>
 
@@ -95,6 +115,17 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, index }) => {
           </p>
         </div>
       </div>
+
+      {/* Homework Status */}
+      {hwDisplay && (
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${hwDisplay.bg}`}>
+            <hwDisplay.icon className={`w-4 h-4 ${hwDisplay.color}`} />
+            <span className="text-muted-foreground text-sm">{t('homework')}:</span>
+            <span className={`font-medium ${hwDisplay.color}`}>{hwDisplay.text}</span>
+          </div>
+        </div>
+      )}
 
       {/* Finish Time */}
       {session.finishTime && (

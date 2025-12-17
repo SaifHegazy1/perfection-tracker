@@ -7,16 +7,17 @@ import SessionCard from './SessionCard';
 import LanguageToggle from './LanguageToggle';
 import logo from '@/assets/logo.jpg';
 
-// Demo session data
+// Demo session data with HW status
+// hwStatus: 'complete' (empty), 'notDone' (1), 'partial' (2), 'cheated' (3)
 const demoSessions = [
-  { sessionNumber: 1, attended: true, payment: 150, examMark: 85, quizMark: 90, time: '10:30 AM', finishTime: '12:00 PM' },
-  { sessionNumber: 2, attended: true, payment: 150, examMark: 78, quizMark: 85, time: '10:45 AM', finishTime: '12:15 PM' },
-  { sessionNumber: 3, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null },
-  { sessionNumber: 4, attended: true, payment: 150, examMark: 92, quizMark: 88, time: '10:20 AM', finishTime: '11:50 PM' },
-  { sessionNumber: 5, attended: true, payment: 150, examMark: 88, quizMark: 95, time: '10:35 AM', finishTime: '12:05 PM' },
-  { sessionNumber: 6, attended: true, payment: 150, examMark: 75, quizMark: 80, time: '10:40 AM', finishTime: '12:10 PM' },
-  { sessionNumber: 7, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null },
-  { sessionNumber: 8, attended: true, payment: 150, examMark: 90, quizMark: 92, time: '10:25 AM', finishTime: '11:55 PM' },
+  { sessionNumber: 1, attended: true, payment: 150, examMark: 85, quizMark: 18, time: '10:30 AM', finishTime: '12:00 PM', hwStatus: 'complete' as const },
+  { sessionNumber: 2, attended: true, payment: 150, examMark: 78, quizMark: 15, time: '10:45 AM', finishTime: '12:15 PM', hwStatus: 'partial' as const },
+  { sessionNumber: 3, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null, hwStatus: null },
+  { sessionNumber: 4, attended: true, payment: 150, examMark: 92, quizMark: 20, time: '10:20 AM', finishTime: '11:50 AM', hwStatus: 'complete' as const },
+  { sessionNumber: 5, attended: true, payment: 150, examMark: 88, quizMark: 17, time: '10:35 AM', finishTime: '12:05 PM', hwStatus: 'notDone' as const },
+  { sessionNumber: 6, attended: true, payment: 150, examMark: 75, quizMark: 14, time: '10:40 AM', finishTime: '12:10 PM', hwStatus: 'complete' as const },
+  { sessionNumber: 7, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null, hwStatus: null },
+  { sessionNumber: 8, attended: true, payment: 150, examMark: 90, quizMark: 19, time: '10:25 AM', finishTime: '11:55 AM', hwStatus: 'cheated' as const },
 ];
 
 const StudentDashboard: React.FC = () => {

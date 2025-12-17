@@ -20,6 +20,7 @@ const translations: Translations = {
   changePassword: { en: 'Change Password', ar: 'تغيير كلمة المرور' },
   firstLoginMessage: { en: 'Please change your password for first login', ar: 'يرجى تغيير كلمة المرور لأول تسجيل دخول' },
   session: { en: 'Session', ar: 'الحصة' },
+  selectSession: { en: 'Select Session', ar: 'اختر الحصة' },
   attendance: { en: 'Attendance', ar: 'الحضور' },
   present: { en: 'Present', ar: 'حاضر' },
   absent: { en: 'Absent', ar: 'غائب' },
@@ -45,6 +46,16 @@ const translations: Translations = {
   passwordChanged: { en: 'Password changed successfully', ar: 'تم تغيير كلمة المرور بنجاح' },
   enterPhone: { en: 'Enter parent phone number', ar: 'أدخل رقم هاتف ولي الأمر' },
   enterPassword: { en: 'Enter password', ar: 'أدخل كلمة المرور' },
+  homework: { en: 'Homework', ar: 'الواجب' },
+  hwComplete: { en: 'Completed', ar: 'مكتمل' },
+  hwNotDone: { en: 'Not Done', ar: 'لم يُنجز' },
+  hwPartial: { en: 'Partial', ar: 'جزئي' },
+  hwCheated: { en: 'Cheated', ar: 'غش' },
+  selectHwColumn: { en: 'Select HW Column', ar: 'اختر عمود الواجب' },
+  enterFinishTime: { en: 'Enter Finish Time', ar: 'أدخل وقت الانتهاء' },
+  enterQuizMark: { en: 'Enter Quiz Mark', ar: 'أدخل درجة الكويز' },
+  updateSession: { en: 'Update Session', ar: 'تحديث الحصة' },
+  marks: { en: 'marks', ar: 'درجة' },
 };
 
 interface LanguageContextType {
