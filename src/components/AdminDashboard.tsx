@@ -12,7 +12,16 @@ import logo from '@/assets/logo.jpg';
 
 const sheets = ['cam 1', 'cam 2', 'miami west', 'station 1', 'station 2', 'station 3'];
 const sessions = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
-const hwColumns = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+const hwColumns = [
+  { value: 'AY', label: 'HW1' },
+  { value: 'AZ', label: 'HW2' },
+  { value: 'BA', label: 'HW3' },
+  { value: 'BB', label: 'HW4' },
+  { value: 'BC', label: 'HW5' },
+  { value: 'BD', label: 'HW6' },
+  { value: 'BE', label: 'HW7' },
+  { value: 'BF', label: 'HW8' },
+];
 
 const AdminDashboard: React.FC = () => {
   const { t } = useLanguage();
@@ -273,8 +282,8 @@ const AdminDashboard: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   {hwColumns.map((col) => (
-                    <SelectItem key={col} value={col}>
-                      Column {col}
+                    <SelectItem key={col.value} value={col.value}>
+                      {col.label} (Column {col.value})
                     </SelectItem>
                   ))}
                 </SelectContent>
