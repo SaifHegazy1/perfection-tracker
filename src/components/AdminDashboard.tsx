@@ -18,6 +18,10 @@ interface Sheet {
 }
 
 const sessions = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
+const uploadTypes = [
+  { value: 'session', label: 'Session (S1-S8)', labelAr: 'حصة (S1-S8)' },
+  { value: 'shamel', label: 'درجات الشامل', labelAr: 'درجات الشامل' },
+];
 const hwColumns = [
   { value: 'hw1', label: 'HW1' },
   { value: 'hw2', label: 'HW2' },
@@ -56,6 +60,8 @@ const AdminDashboard: React.FC = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [stats, setStats] = useState({ sheets: 0, students: 0, sessions: 8 });
+  const [uploadType, setUploadType] = useState('session');
+  const [examName, setExamName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -97,7 +103,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const parseExcelFile = async (file: File): Promise<unknown[]> => {
+  const parseExcelFile = async (file: File, type: 'session' | 'shamel'): Promise<unknown[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -110,28 +116,46 @@ const AdminDashboard: React.FC = () => {
           const range = XLSX.utils.decode_range(firstSheet['!ref'] || 'A1');
           const rows: unknown[] = [];
 
-          // Skip header row, start from row 2
-          for (let row = 1; row <= range.e.r; row++) {
+          // Skip header rows (row 1 and 2 in Shamel), start from row 3
+          const startRow = type === 'shamel' ? 2 : 1;
+          
+          for (let row = startRow; row <= range.e.r; row++) {
             const getCellValue = (col: string) => {
               const cell = firstSheet[`${col}${row + 1}`];
               return cell ? cell.v : null;
             };
 
-            const rowData = {
-              id: getCellValue('A'),
-              name: getCellValue('B'),
-              student_phone: getCellValue('C')?.toString() || '',
-              parent_phone: getCellValue('D')?.toString() || '',
-              attendance: getCellValue('E'),
-              payment: getCellValue('F'),
-              quiz_mark: getCellValue('G'),
-              time: getCellValue('H')?.toString() || null,
-              hw_status: getCellValue('I') // Session-specific HW column
-            };
+            if (type === 'shamel') {
+              // Shamel format: A: id, B: name, C: Parent No, D: shamel (a), E: p, F: Q
+              const rowData = {
+                id: getCellValue('A'),
+                name: getCellValue('B'),
+                parent_phone: getCellValue('C')?.toString() || '',
+                attendance: getCellValue('D'),
+                payment: getCellValue('E'),
+                quiz_mark: getCellValue('F'),
+              };
 
-            // Only include rows with valid data
-            if (rowData.id && rowData.name && rowData.parent_phone) {
-              rows.push(rowData);
+              if (rowData.id && rowData.name && rowData.parent_phone) {
+                rows.push(rowData);
+              }
+            } else {
+              // Session format: A: id, B: name, C: student phone, D: Parent No, E: a, F: p, G: Q, H: time, I: hw
+              const rowData = {
+                id: getCellValue('A'),
+                name: getCellValue('B'),
+                student_phone: getCellValue('C')?.toString() || '',
+                parent_phone: getCellValue('D')?.toString() || '',
+                attendance: getCellValue('E'),
+                payment: getCellValue('F'),
+                quiz_mark: getCellValue('G'),
+                time: getCellValue('H')?.toString() || null,
+                hw_status: getCellValue('I')
+              };
+
+              if (rowData.id && rowData.name && rowData.parent_phone) {
+                rows.push(rowData);
+              }
             }
           }
 
@@ -154,20 +178,29 @@ const AdminDashboard: React.FC = () => {
       toast.error('Please select a sheet');
       return;
     }
-    if (!selectedSession) {
-      toast.error('Please select a session');
-      return;
-    }
-    if (!selectedHwColumn) {
-      toast.error('Please select a homework column');
-      return;
+    
+    // Validation based on upload type
+    if (uploadType === 'session') {
+      if (!selectedSession) {
+        toast.error('Please select a session');
+        return;
+      }
+      if (!selectedHwColumn) {
+        toast.error('Please select a homework column');
+        return;
+      }
+    } else if (uploadType === 'shamel') {
+      if (!examName.trim()) {
+        toast.error('Please enter the exam name');
+        return;
+      }
     }
 
     setIsUploading(true);
     
     try {
-      // Parse Excel file
-      const excelData = await parseExcelFile(uploadedFile);
+      // Parse Excel file based on type
+      const excelData = await parseExcelFile(uploadedFile, uploadType as 'session' | 'shamel');
       
       if (excelData.length === 0) {
         toast.error('No valid data found in the Excel file');
@@ -175,18 +208,34 @@ const AdminDashboard: React.FC = () => {
         return;
       }
 
-      const sessionNumber = parseInt(selectedSession.replace('S', ''));
+      let data, error;
 
-      // Call edge function to process data
-      const { data, error } = await supabase.functions.invoke('parse-excel', {
-        body: {
-          excelData,
-          sheetName: selectedSheet,
-          sessionNumber,
-          finishTime: finishTime || null,
-          hwColumn: selectedHwColumn
-        }
-      });
+      if (uploadType === 'shamel') {
+        // Call shamel edge function
+        const result = await supabase.functions.invoke('parse-shamel', {
+          body: {
+            excelData,
+            sheetName: selectedSheet,
+            examName: examName.trim()
+          }
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        // Call session edge function
+        const sessionNumber = parseInt(selectedSession.replace('S', ''));
+        const result = await supabase.functions.invoke('parse-excel', {
+          body: {
+            excelData,
+            sheetName: selectedSheet,
+            sessionNumber,
+            finishTime: finishTime || null,
+            hwColumn: selectedHwColumn
+          }
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Upload error:', error);
@@ -205,6 +254,7 @@ const AdminDashboard: React.FC = () => {
         setSelectedHwColumn('');
         setFinishTime('');
         setQuizMark('');
+        setExamName('');
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
         }
@@ -319,6 +369,23 @@ const AdminDashboard: React.FC = () => {
           </h2>
 
           <div className="space-y-4">
+            {/* Upload Type Selection */}
+            <div className="space-y-2">
+              <Label className="text-foreground">Upload Type / نوع الرفع</Label>
+              <Select value={uploadType} onValueChange={setUploadType}>
+                <SelectTrigger className="bg-secondary/50 border-border">
+                  <SelectValue placeholder="Select upload type" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {uploadTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Sheet Selection */}
             <div className="space-y-2">
               <Label className="text-foreground">{t('selectSheet')}</Label>
@@ -336,54 +403,76 @@ const AdminDashboard: React.FC = () => {
               </Select>
             </div>
 
-            {/* Session Selection */}
-            <div className="space-y-2">
-              <Label className="text-foreground">{t('selectSession')}</Label>
-              <Select value={selectedSession} onValueChange={setSelectedSession}>
-                <SelectTrigger className="bg-secondary/50 border-border">
-                  <SelectValue placeholder={t('selectSession')} />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {sessions.map((session) => (
-                    <SelectItem key={session} value={session}>
-                      {session}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Session-specific fields */}
+            {uploadType === 'session' && (
+              <>
+                {/* Session Selection */}
+                <div className="space-y-2">
+                  <Label className="text-foreground">{t('selectSession')}</Label>
+                  <Select value={selectedSession} onValueChange={setSelectedSession}>
+                    <SelectTrigger className="bg-secondary/50 border-border">
+                      <SelectValue placeholder={t('selectSession')} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {sessions.map((session) => (
+                        <SelectItem key={session} value={session}>
+                          {session}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* HW Column Selection */}
-            <div className="space-y-2">
-              <Label className="text-foreground">{t('selectHwColumn')}</Label>
-              <Select value={selectedHwColumn} onValueChange={setSelectedHwColumn}>
-                <SelectTrigger className="bg-secondary/50 border-border">
-                  <SelectValue placeholder={t('selectHwColumn')} />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {hwColumns.map((col) => (
-                    <SelectItem key={col.value} value={col.value}>
-                      {col.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* HW Column Selection */}
+                <div className="space-y-2">
+                  <Label className="text-foreground">{t('selectHwColumn')}</Label>
+                  <Select value={selectedHwColumn} onValueChange={setSelectedHwColumn}>
+                    <SelectTrigger className="bg-secondary/50 border-border">
+                      <SelectValue placeholder={t('selectHwColumn')} />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {hwColumns.map((col) => (
+                        <SelectItem key={col.value} value={col.value}>
+                          {col.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
 
-            {/* Finish Time */}
-            <div className="space-y-2">
-              <Label className="text-foreground flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                {t('finishTime')}
-              </Label>
-              <Input
-                type="time"
-                value={finishTime}
-                onChange={(e) => setFinishTime(e.target.value)}
-                className="bg-secondary/50 border-border"
-                placeholder={t('enterFinishTime')}
-              />
-            </div>
+            {/* Shamel-specific fields */}
+            {uploadType === 'shamel' && (
+              <div className="space-y-2">
+                <Label className="text-foreground">Exam Name / اسم الامتحان</Label>
+                <Input
+                  type="text"
+                  value={examName}
+                  onChange={(e) => setExamName(e.target.value)}
+                  className="bg-secondary/50 border-border"
+                  placeholder="مثال: شامل الترم الأول"
+                  dir="rtl"
+                />
+              </div>
+            )}
+
+            {/* Finish Time - only for sessions */}
+            {uploadType === 'session' && (
+              <div className="space-y-2">
+                <Label className="text-foreground flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  {t('finishTime')}
+                </Label>
+                <Input
+                  type="time"
+                  value={finishTime}
+                  onChange={(e) => setFinishTime(e.target.value)}
+                  className="bg-secondary/50 border-border"
+                  placeholder={t('enterFinishTime')}
+                />
+              </div>
+            )}
 
             {/* File Upload */}
             <div className="space-y-2">
@@ -412,7 +501,13 @@ const AdminDashboard: React.FC = () => {
             <Button 
               onClick={handleUpload}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-              disabled={!uploadedFile || !selectedSheet || !selectedSession || !selectedHwColumn || isUploading}
+              disabled={
+                !uploadedFile || 
+                !selectedSheet || 
+                isUploading ||
+                (uploadType === 'session' && (!selectedSession || !selectedHwColumn)) ||
+                (uploadType === 'shamel' && !examName.trim())
+              }
             >
               {isUploading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
