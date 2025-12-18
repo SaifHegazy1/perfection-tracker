@@ -15,7 +15,7 @@ const ChangePasswordForm: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -29,8 +29,12 @@ const ChangePasswordForm: React.FC = () => {
       return;
     }
 
-    changePassword(newPassword);
-    toast.success(t('passwordChanged'));
+    const result = await changePassword(newPassword);
+    if (result.success) {
+      toast.success(t('passwordChanged'));
+    } else {
+      setError(result.error || 'Failed to change password');
+    }
   };
 
   return (

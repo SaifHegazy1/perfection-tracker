@@ -22,11 +22,10 @@ const LoginForm: React.FC = () => {
     setError('');
     setLoading(true);
 
-    const isAdmin = activeTab === 'admin';
-    const success = await login(phone, password, isAdmin);
+    const result = await login(phone, password);
     
-    if (!success) {
-      setError(t('invalidCredentials'));
+    if (!result.success) {
+      setError(result.error || t('invalidCredentials'));
     }
     setLoading(false);
   };
