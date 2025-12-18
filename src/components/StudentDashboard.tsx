@@ -1,35 +1,133 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Loader2 } from 'lucide-react';
 import SessionCard from './SessionCard';
 import LanguageToggle from './LanguageToggle';
 import logo from '@/assets/logo.jpg';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
-// Demo session data with HW status
-// hwStatus: 'complete' (empty), 'notDone' (1), 'partial' (2), 'cheated' (3)
-const demoSessions = [
-  { sessionNumber: 1, attended: true, payment: 150, examMark: 85, quizMark: 18, time: '10:30 AM', finishTime: '12:00 PM', hwStatus: 'complete' as const },
-  { sessionNumber: 2, attended: true, payment: 150, examMark: 78, quizMark: 15, time: '10:45 AM', finishTime: '12:15 PM', hwStatus: 'partial' as const },
-  { sessionNumber: 3, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null, hwStatus: null },
-  { sessionNumber: 4, attended: true, payment: 150, examMark: 92, quizMark: 20, time: '10:20 AM', finishTime: '11:50 AM', hwStatus: 'complete' as const },
-  { sessionNumber: 5, attended: true, payment: 150, examMark: 88, quizMark: 17, time: '10:35 AM', finishTime: '12:05 PM', hwStatus: 'notDone' as const },
-  { sessionNumber: 6, attended: true, payment: 150, examMark: 75, quizMark: 14, time: '10:40 AM', finishTime: '12:10 PM', hwStatus: 'complete' as const },
-  { sessionNumber: 7, attended: false, payment: 0, examMark: null, quizMark: null, time: null, finishTime: null, hwStatus: null },
-  { sessionNumber: 8, attended: true, payment: 150, examMark: 90, quizMark: 19, time: '10:25 AM', finishTime: '11:55 AM', hwStatus: 'cheated' as const },
-];
+interface SessionData {
+  sessionNumber: number;
+  attended: boolean;
+  payment: number;
+  examMark: number | null;
+  quizMark: number | null;
+  time: string | null;
+  finishTime: string | null;
+  hwStatus: 'complete' | 'notDone' | 'partial' | 'cheated' | null;
+}
 
 const StudentDashboard: React.FC = () => {
   const { t, language } = useLanguage();
   const { user, logout } = useAuth();
+  const [sessions, setSessions] = useState<SessionData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [studentName, setStudentName] = useState<string>('');
 
-  const totalPayment = demoSessions.reduce((sum, s) => sum + s.payment, 0);
-  const attendedCount = demoSessions.filter(s => s.attended).length;
+  useEffect(() => {
+    if (user) {
+      fetchStudentSessions();
+    }
+  }, [user]);
+
+  const fetchStudentSessions = async () => {
+    if (!user) return;
+
+    try {
+      // Get student ID linked to this user
+      const { data: studentLink, error: linkError } = await supabase
+        .from('user_students')
+        .select('student_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (linkError || !studentLink) {
+        console.error('Error fetching student link:', linkError);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get student info
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('name')
+        .eq('id', studentLink.student_id)
+        .maybeSingle();
+
+      if (studentData) {
+        setStudentName(studentData.name);
+      }
+
+      // Get all sessions for this student
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('student_id', studentLink.student_id)
+        .order('session_number');
+
+      if (sessionError) {
+        console.error('Error fetching sessions:', sessionError);
+        setIsLoading(false);
+        return;
+      }
+
+      // Map HW status from database enum to frontend format
+      const mapHwStatus = (status: string | null): 'complete' | 'notDone' | 'partial' | 'cheated' | null => {
+        if (!status) return null;
+        switch (status) {
+          case 'complete': return 'complete';
+          case 'not_done': return 'notDone';
+          case 'partial': return 'partial';
+          case 'cheated': return 'cheated';
+          default: return null;
+        }
+      };
+
+      // Build sessions array (1-8)
+      const allSessions: SessionData[] = [];
+      for (let i = 1; i <= 8; i++) {
+        const dbSession = sessionData?.find(s => s.session_number === i);
+        
+        // Get the first non-null HW status from hw1-hw8
+        let hwStatus: 'complete' | 'notDone' | 'partial' | 'cheated' | null = null;
+        if (dbSession) {
+          for (let j = 1; j <= 8; j++) {
+            const hwKey = `hw${j}_status` as keyof typeof dbSession;
+            if (dbSession[hwKey]) {
+              hwStatus = mapHwStatus(dbSession[hwKey] as string);
+              break;
+            }
+          }
+        }
+
+        allSessions.push({
+          sessionNumber: i,
+          attended: dbSession?.attended || false,
+          payment: Number(dbSession?.payment) || 0,
+          examMark: null, // Not in current schema
+          quizMark: dbSession?.quiz_mark ? Number(dbSession.quiz_mark) : null,
+          time: dbSession?.time || null,
+          finishTime: dbSession?.finish_time || null,
+          hwStatus
+        });
+      }
+
+      setSessions(allSessions);
+    } catch (error) {
+      console.error('Error in fetchStudentSessions:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const totalPayment = sessions.reduce((sum, s) => sum + s.payment, 0);
+  const attendedCount = sessions.filter(s => s.attended).length;
 
   // Quiz marks chart data
-  const quizChartData = demoSessions
+  const quizChartData = sessions
     .filter(s => s.quizMark !== null)
     .map(s => ({
       name: `S${s.sessionNumber}`,
@@ -38,10 +136,10 @@ const StudentDashboard: React.FC = () => {
 
   // HW status chart data
   const hwStatusCounts = {
-    complete: demoSessions.filter(s => s.hwStatus === 'complete').length,
-    partial: demoSessions.filter(s => s.hwStatus === 'partial').length,
-    notDone: demoSessions.filter(s => s.hwStatus === 'notDone').length,
-    cheated: demoSessions.filter(s => s.hwStatus === 'cheated').length,
+    complete: sessions.filter(s => s.hwStatus === 'complete').length,
+    partial: sessions.filter(s => s.hwStatus === 'partial').length,
+    notDone: sessions.filter(s => s.hwStatus === 'notDone').length,
+    cheated: sessions.filter(s => s.hwStatus === 'cheated').length,
   };
 
   const hwPieData = [
@@ -50,6 +148,14 @@ const StudentDashboard: React.FC = () => {
     { name: language === 'ar' ? 'لم يحل' : 'Not Done', value: hwStatusCounts.notDone, color: 'hsl(var(--destructive))' },
     { name: language === 'ar' ? 'غش' : 'Cheated', value: hwStatusCounts.cheated, color: 'hsl(var(--muted-foreground))' },
   ].filter(item => item.value > 0);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 md:p-6 lg:p-8">
@@ -91,7 +197,7 @@ const StudentDashboard: React.FC = () => {
             </div>
             <div>
               <p className="text-muted-foreground text-sm">{t('welcomeBack')}</p>
-              <h2 className="text-2xl font-bold text-foreground">{user?.name}</h2>
+              <h2 className="text-2xl font-bold text-foreground">{studentName || user?.name || user?.phoneOrUsername}</h2>
               <p className="text-xs text-muted-foreground capitalize">{user?.sheet}</p>
             </div>
           </div>
@@ -109,75 +215,81 @@ const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Analytics Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Quiz Marks Chart */}
-        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            {language === 'ar' ? 'درجات الكويز' : 'Quiz Marks'}
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={quizChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    color: 'hsl(var(--foreground))'
-                  }} 
-                />
-                <Bar dataKey="mark" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      {(quizChartData.length > 0 || hwPieData.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Quiz Marks Chart */}
+          {quizChartData.length > 0 && (
+            <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+              <h3 className="text-lg font-semibold text-foreground mb-4">
+                {language === 'ar' ? 'درجات الكويز' : 'Quiz Marks'}
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={quizChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis stroke="hsl(var(--muted-foreground))" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                        color: 'hsl(var(--foreground))'
+                      }} 
+                    />
+                    <Bar dataKey="mark" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
-        {/* HW Status Chart */}
-        <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            {language === 'ar' ? 'حالة الواجبات' : 'Homework Status'}
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={hwPieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
-                >
-                  {hwPieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    color: 'hsl(var(--foreground))'
-                  }} 
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {/* HW Status Chart */}
+          {hwPieData.length > 0 && (
+            <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <h3 className="text-lg font-semibold text-foreground mb-4">
+                {language === 'ar' ? 'حالة الواجبات' : 'Homework Status'}
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={hwPieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {hwPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                        color: 'hsl(var(--foreground))'
+                      }} 
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Sessions Grid */}
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-foreground mb-4">{t('sessions')}</h3>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {demoSessions.map((session, index) => (
+        {sessions.map((session, index) => (
           <SessionCard key={session.sessionNumber} session={session} index={index} />
         ))}
       </div>
