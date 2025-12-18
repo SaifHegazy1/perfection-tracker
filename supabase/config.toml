@@ -1,1 +1,7 @@
 project_id = "oeltsgfdpixokofvqpyx"
+
+[functions.parse-excel]
+verify_jwt = false
+
+[functions.parse-shamel]
+verify_jwt = false

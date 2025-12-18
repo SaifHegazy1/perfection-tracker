@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      exam_results: {
+        Row: {
+          attendance: boolean | null
+          created_at: string
+          exam_id: string
+          id: string
+          payment: number | null
+          quiz_mark: number | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendance?: boolean | null
+          created_at?: string
+          exam_id: string
+          id?: string
+          payment?: number | null
+          quiz_mark?: number | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendance?: boolean | null
+          created_at?: string
+          exam_id?: string
+          id?: string
+          payment?: number | null
+          quiz_mark?: number | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_results_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_results_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exams: {
+        Row: {
+          created_at: string
+          exam_type: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          exam_type?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          exam_type?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           attended: boolean | null
