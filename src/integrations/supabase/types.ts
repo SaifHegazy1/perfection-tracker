@@ -14,16 +14,233 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      sessions: {
+        Row: {
+          attended: boolean | null
+          created_at: string
+          finish_time: string | null
+          hw1_status: Database["public"]["Enums"]["hw_status"] | null
+          hw2_status: Database["public"]["Enums"]["hw_status"] | null
+          hw3_status: Database["public"]["Enums"]["hw_status"] | null
+          hw4_status: Database["public"]["Enums"]["hw_status"] | null
+          hw5_status: Database["public"]["Enums"]["hw_status"] | null
+          hw6_status: Database["public"]["Enums"]["hw_status"] | null
+          hw7_status: Database["public"]["Enums"]["hw_status"] | null
+          hw8_status: Database["public"]["Enums"]["hw_status"] | null
+          id: string
+          payment: number | null
+          quiz_mark: number | null
+          session_number: number
+          student_id: string
+          time: string | null
+          updated_at: string
+        }
+        Insert: {
+          attended?: boolean | null
+          created_at?: string
+          finish_time?: string | null
+          hw1_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw2_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw3_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw4_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw5_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw6_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw7_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw8_status?: Database["public"]["Enums"]["hw_status"] | null
+          id?: string
+          payment?: number | null
+          quiz_mark?: number | null
+          session_number: number
+          student_id: string
+          time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attended?: boolean | null
+          created_at?: string
+          finish_time?: string | null
+          hw1_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw2_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw3_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw4_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw5_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw6_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw7_status?: Database["public"]["Enums"]["hw_status"] | null
+          hw8_status?: Database["public"]["Enums"]["hw_status"] | null
+          id?: string
+          payment?: number | null
+          quiz_mark?: number | null
+          session_number?: number
+          student_id?: string
+          time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheets: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          parent_phone: string
+          sheet_id: string
+          student_code: string
+          student_phone: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          parent_phone: string
+          sheet_id: string
+          student_code: string
+          student_phone?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          parent_phone?: string
+          sheet_id?: string
+          student_code?: string
+          student_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "sheets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_students: {
+        Row: {
+          id: string
+          student_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_students_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_students_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          auth_id: string | null
+          created_at: string
+          id: string
+          must_change_password: boolean | null
+          phone_or_username: string
+        }
+        Insert: {
+          auth_id?: string | null
+          created_at?: string
+          id?: string
+          must_change_password?: boolean | null
+          phone_or_username: string
+        }
+        Update: {
+          auth_id?: string | null
+          created_at?: string
+          id?: string
+          must_change_password?: boolean | null
+          phone_or_username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_id: { Args: { _auth_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "parent"
+      hw_status: "complete" | "not_done" | "partial" | "cheated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +367,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "parent"],
+      hw_status: ["complete", "not_done", "partial", "cheated"],
+    },
   },
 } as const

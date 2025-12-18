@@ -1,38 +1,89 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LogOut, Upload, FileSpreadsheet, Users, CheckCircle2, Clock, BookOpen } from 'lucide-react';
+import { LogOut, Upload, FileSpreadsheet, Users, CheckCircle2, Clock, BookOpen, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import LanguageToggle from './LanguageToggle';
 import logo from '@/assets/logo.jpg';
+import * as XLSX from 'xlsx';
 
-const sheets = ['cam 1', 'cam 2', 'miami west', 'station 1', 'station 2', 'station 3'];
+interface Sheet {
+  id: string;
+  name: string;
+}
+
 const sessions = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 const hwColumns = [
-  { value: 'AY', label: 'HW1' },
-  { value: 'AZ', label: 'HW2' },
-  { value: 'BA', label: 'HW3' },
-  { value: 'BB', label: 'HW4' },
-  { value: 'BC', label: 'HW5' },
-  { value: 'BD', label: 'HW6' },
-  { value: 'BE', label: 'HW7' },
-  { value: 'BF', label: 'HW8' },
+  { value: 'hw1', label: 'HW1' },
+  { value: 'hw2', label: 'HW2' },
+  { value: 'hw3', label: 'HW3' },
+  { value: 'hw4', label: 'HW4' },
+  { value: 'hw5', label: 'HW5' },
+  { value: 'hw6', label: 'HW6' },
+  { value: 'hw7', label: 'HW7' },
+  { value: 'hw8', label: 'HW8' },
 ];
+
+// Excel column mapping based on user's Excel structure
+// A: id, B: name, C: student no, D: Parent No, E: a (attendance), F: p (payment), G: Q (quiz), H: time, I: s1 (hw for session 1)
+const EXCEL_COLUMNS = {
+  id: 'A',
+  name: 'B',
+  studentPhone: 'C',
+  parentPhone: 'D',
+  attendance: 'E',
+  payment: 'F',
+  quizMark: 'G',
+  time: 'H',
+  // Session-specific HW columns (s1 = column I, etc.)
+  hwBase: 'I' // Starting column for HW (session-specific)
+};
 
 const AdminDashboard: React.FC = () => {
   const { t } = useLanguage();
   const { logout } = useAuth();
+  const [sheets, setSheets] = useState<Sheet[]>([]);
   const [selectedSheet, setSelectedSheet] = useState('');
   const [selectedSession, setSelectedSession] = useState('');
   const [selectedHwColumn, setSelectedHwColumn] = useState('');
   const [finishTime, setFinishTime] = useState('');
   const [quizMark, setQuizMark] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [stats, setStats] = useState({ sheets: 0, students: 0, sessions: 8 });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchSheets();
+    fetchStats();
+  }, []);
+
+  const fetchSheets = async () => {
+    const { data, error } = await supabase
+      .from('sheets')
+      .select('id, name')
+      .order('name');
+
+    if (!error && data) {
+      setSheets(data);
+    }
+  };
+
+  const fetchStats = async () => {
+    const { count: sheetsCount } = await supabase.from('sheets').select('*', { count: 'exact', head: true });
+    const { count: studentsCount } = await supabase.from('students').select('*', { count: 'exact', head: true });
+    
+    setStats({
+      sheets: sheetsCount || 0,
+      students: studentsCount || 0,
+      sessions: 8
+    });
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,7 +97,55 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleUpload = () => {
+  const parseExcelFile = async (file: File): Promise<unknown[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          
+          // Get the range to iterate through rows
+          const range = XLSX.utils.decode_range(firstSheet['!ref'] || 'A1');
+          const rows: unknown[] = [];
+
+          // Skip header row, start from row 2
+          for (let row = 1; row <= range.e.r; row++) {
+            const getCellValue = (col: string) => {
+              const cell = firstSheet[`${col}${row + 1}`];
+              return cell ? cell.v : null;
+            };
+
+            const rowData = {
+              id: getCellValue('A'),
+              name: getCellValue('B'),
+              student_phone: getCellValue('C')?.toString() || '',
+              parent_phone: getCellValue('D')?.toString() || '',
+              attendance: getCellValue('E'),
+              payment: getCellValue('F'),
+              quiz_mark: getCellValue('G'),
+              time: getCellValue('H')?.toString() || null,
+              hw_status: getCellValue('I') // Session-specific HW column
+            };
+
+            // Only include rows with valid data
+            if (rowData.id && rowData.name && rowData.parent_phone) {
+              rows.push(rowData);
+            }
+          }
+
+          resolve(rows);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleUpload = async () => {
     if (!uploadedFile) {
       toast.error('Please select a file first');
       return;
@@ -59,20 +158,71 @@ const AdminDashboard: React.FC = () => {
       toast.error('Please select a session');
       return;
     }
+    if (!selectedHwColumn) {
+      toast.error('Please select a homework column');
+      return;
+    }
+
+    setIsUploading(true);
     
-    toast.success(`Uploaded ${uploadedFile.name} to ${selectedSheet} - ${selectedSession}`);
-    setUploadedFile(null);
-    setSelectedSheet('');
-    setSelectedSession('');
-    setSelectedHwColumn('');
-    setFinishTime('');
-    setQuizMark('');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    try {
+      // Parse Excel file
+      const excelData = await parseExcelFile(uploadedFile);
+      
+      if (excelData.length === 0) {
+        toast.error('No valid data found in the Excel file');
+        setIsUploading(false);
+        return;
+      }
+
+      const sessionNumber = parseInt(selectedSession.replace('S', ''));
+
+      // Call edge function to process data
+      const { data, error } = await supabase.functions.invoke('parse-excel', {
+        body: {
+          excelData,
+          sheetName: selectedSheet,
+          sessionNumber,
+          finishTime: finishTime || null,
+          hwColumn: selectedHwColumn
+        }
+      });
+
+      if (error) {
+        console.error('Upload error:', error);
+        toast.error(`Upload failed: ${error.message}`);
+      } else if (data.success) {
+        toast.success(`Successfully processed ${data.processedCount} students`);
+        if (data.errors && data.errors.length > 0) {
+          console.warn('Some rows had errors:', data.errors);
+          toast.warning(`${data.errors.length} rows had errors`);
+        }
+        
+        // Reset form
+        setUploadedFile(null);
+        setSelectedSheet('');
+        setSelectedSession('');
+        setSelectedHwColumn('');
+        setFinishTime('');
+        setQuizMark('');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        // Refresh stats
+        fetchStats();
+      } else {
+        toast.error(data.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to process Excel file');
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const handleUpdateSession = () => {
+  const handleUpdateSession = async () => {
     if (!selectedSheet || !selectedSession) {
       toast.error('Please select sheet and session first');
       return;
@@ -88,6 +238,7 @@ const AdminDashboard: React.FC = () => {
       return;
     }
     
+    // TODO: Implement batch update for existing sessions
     toast.success(`Updated ${selectedSession} in ${selectedSheet}: ${updates.join(', ')}`);
   };
 
@@ -130,7 +281,7 @@ const AdminDashboard: React.FC = () => {
               <FileSpreadsheet className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">6</p>
+              <p className="text-2xl font-bold text-foreground">{stats.sheets}</p>
               <p className="text-sm text-muted-foreground">Sheets</p>
             </div>
           </div>
@@ -141,7 +292,7 @@ const AdminDashboard: React.FC = () => {
               <Users className="w-6 h-6 text-accent" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">124</p>
+              <p className="text-2xl font-bold text-foreground">{stats.students}</p>
               <p className="text-sm text-muted-foreground">Students</p>
             </div>
           </div>
@@ -152,7 +303,7 @@ const AdminDashboard: React.FC = () => {
               <CheckCircle2 className="w-6 h-6 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">8</p>
+              <p className="text-2xl font-bold text-foreground">{stats.sessions}</p>
               <p className="text-sm text-muted-foreground">{t('sessions')}</p>
             </div>
           </div>
@@ -177,8 +328,8 @@ const AdminDashboard: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   {sheets.map((sheet) => (
-                    <SelectItem key={sheet} value={sheet} className="capitalize">
-                      {sheet}
+                    <SelectItem key={sheet.id} value={sheet.name} className="capitalize">
+                      {sheet.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -200,6 +351,38 @@ const AdminDashboard: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* HW Column Selection */}
+            <div className="space-y-2">
+              <Label className="text-foreground">{t('selectHwColumn')}</Label>
+              <Select value={selectedHwColumn} onValueChange={setSelectedHwColumn}>
+                <SelectTrigger className="bg-secondary/50 border-border">
+                  <SelectValue placeholder={t('selectHwColumn')} />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {hwColumns.map((col) => (
+                    <SelectItem key={col.value} value={col.value}>
+                      {col.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Finish Time */}
+            <div className="space-y-2">
+              <Label className="text-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                {t('finishTime')}
+              </Label>
+              <Input
+                type="time"
+                value={finishTime}
+                onChange={(e) => setFinishTime(e.target.value)}
+                className="bg-secondary/50 border-border"
+                placeholder={t('enterFinishTime')}
+              />
             </div>
 
             {/* File Upload */}
@@ -229,10 +412,14 @@ const AdminDashboard: React.FC = () => {
             <Button 
               onClick={handleUpload}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-              disabled={!uploadedFile || !selectedSheet || !selectedSession}
+              disabled={!uploadedFile || !selectedSheet || !selectedSession || !selectedHwColumn || isUploading}
             >
-              <Upload className="w-4 h-4" />
-              {t('uploadExcel')}
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              {isUploading ? 'Processing...' : t('uploadExcel')}
             </Button>
           </div>
         </div>
@@ -245,21 +432,6 @@ const AdminDashboard: React.FC = () => {
           </h2>
 
           <div className="space-y-4">
-            {/* Finish Time */}
-            <div className="space-y-2">
-              <Label className="text-foreground flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                {t('finishTime')}
-              </Label>
-              <Input
-                type="time"
-                value={finishTime}
-                onChange={(e) => setFinishTime(e.target.value)}
-                className="bg-secondary/50 border-border"
-                placeholder={t('enterFinishTime')}
-              />
-            </div>
-
             {/* Quiz Mark */}
             <div className="space-y-2">
               <Label className="text-foreground">{t('quizMark')} ({t('marks')})</Label>
@@ -273,23 +445,6 @@ const AdminDashboard: React.FC = () => {
               />
             </div>
 
-            {/* HW Column Selection */}
-            <div className="space-y-2">
-              <Label className="text-foreground">{t('selectHwColumn')}</Label>
-              <Select value={selectedHwColumn} onValueChange={setSelectedHwColumn}>
-                <SelectTrigger className="bg-secondary/50 border-border">
-                  <SelectValue placeholder={t('selectHwColumn')} />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {hwColumns.map((col) => (
-                    <SelectItem key={col.value} value={col.value}>
-                      {col.label} (Column {col.value})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Update Button */}
             <Button 
               onClick={handleUpdateSession}
@@ -299,6 +454,22 @@ const AdminDashboard: React.FC = () => {
               <CheckCircle2 className="w-4 h-4" />
               {t('updateSession')}
             </Button>
+          </div>
+
+          {/* Excel Column Info */}
+          <div className="mt-6 p-4 bg-secondary/30 rounded-lg">
+            <h3 className="text-sm font-semibold text-foreground mb-2">Excel Column Mapping:</h3>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>A: Student ID (e.g., c001)</li>
+              <li>B: Student Name</li>
+              <li>C: Student Phone</li>
+              <li>D: Parent Phone (Login)</li>
+              <li>E: Attendance (1 = attended)</li>
+              <li>F: Payment amount</li>
+              <li>G: Quiz Mark</li>
+              <li>H: Time</li>
+              <li>I: HW Status (empty=complete, 1=not done, 2=partial, 3=cheated)</li>
+            </ul>
           </div>
         </div>
       </div>
