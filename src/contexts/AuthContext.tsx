@@ -149,22 +149,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: 'User not found. Please check your phone number or username.' };
       }
 
+      // Check if user is admin
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', existingUser.id)
+        .maybeSingle();
+
+      const isAdmin = roleData?.role === 'admin';
+
       // Create email from phone/username for Supabase auth
       const email = `${phoneOrUsername.replace(/[^a-zA-Z0-9]/g, '')}@perfection.app`;
 
       // If user doesn't have auth_id, this is their first login - create auth account
       if (!existingUser.auth_id) {
-        // For first login, password should be the phone number
-        const defaultPassword = phoneOrUsername;
-        
-        if (password !== defaultPassword) {
-          return { success: false, error: 'Invalid password. For first login, use your phone number as password.' };
+        // For parents: first login password should be the phone number
+        // For admins: accept the provided password directly
+        if (!isAdmin) {
+          const defaultPassword = phoneOrUsername;
+          if (password !== defaultPassword) {
+            return { success: false, error: 'Invalid password. For first login, use your phone number as password.' };
+          }
         }
 
-        // Create auth account
+        // Create auth account with the provided password
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
-          password: defaultPassword,
+          password,
           options: {
             emailRedirectTo: `${window.location.origin}/`
           }
