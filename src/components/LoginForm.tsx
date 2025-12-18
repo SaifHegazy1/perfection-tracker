@@ -160,12 +160,6 @@ const LoginForm: React.FC = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Demo credentials hint */}
-        <div className="mt-4 p-3 bg-secondary/30 rounded-lg text-xs text-muted-foreground">
-          <p className="font-medium mb-1">Demo Credentials:</p>
-          <p>Parent: 01012345678 / 123456</p>
-          <p>Admin: admin / admin123</p>
-        </div>
       </div>
     </div>
   );
