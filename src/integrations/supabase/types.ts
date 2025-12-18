@@ -229,7 +229,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_for_login: {
+        Args: { p_phone_or_username: string }
+        Returns: {
+          auth_id: string
+          id: string
+          must_change_password: boolean
+          phone_or_username: string
+        }[]
+      }
       get_user_id: { Args: { _auth_id: string }; Returns: string }
+      get_user_role_for_login: { Args: { p_user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

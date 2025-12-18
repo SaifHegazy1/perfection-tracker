@@ -133,30 +133,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (phoneOrUsername: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      // First check if user exists in our users table
-      const { data: existingUser, error: lookupError } = await supabase
-        .from('users')
-        .select('id, phone_or_username, must_change_password, auth_id')
-        .eq('phone_or_username', phoneOrUsername)
-        .maybeSingle();
+      // Use RPC function to check user (bypasses RLS)
+      const { data: userResult, error: lookupError } = await supabase
+        .rpc('get_user_for_login', { p_phone_or_username: phoneOrUsername });
 
       if (lookupError) {
         console.error('User lookup error:', lookupError);
         return { success: false, error: 'Login failed. Please try again.' };
       }
 
+      const existingUser = userResult?.[0];
+
       if (!existingUser) {
         return { success: false, error: 'User not found. Please check your phone number or username.' };
       }
 
-      // Check if user is admin
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', existingUser.id)
-        .maybeSingle();
+      // Check if user is admin using RPC function
+      const { data: roleResult } = await supabase
+        .rpc('get_user_role_for_login', { p_user_id: existingUser.id });
 
-      const isAdmin = roleData?.role === 'admin';
+      const isAdmin = roleResult === 'admin';
 
       // Create email from phone/username for Supabase auth
       const email = `${phoneOrUsername.replace(/[^a-zA-Z0-9]/g, '')}@perfection.app`;
