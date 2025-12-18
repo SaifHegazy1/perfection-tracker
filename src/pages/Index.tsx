@@ -9,8 +9,18 @@ import StudentDashboard from '@/components/StudentDashboard';
 import AdminDashboard from '@/components/AdminDashboard';
 
 const AppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const { t } = useLanguage();
+
+  // Show loading while checking auth state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <PhysicsBackground />
+        <div className="text-primary animate-pulse text-xl">{t('title')}</div>
+      </div>
+    );
+  }
 
   // Not logged in - show login form
   if (!user) {
@@ -36,8 +46,8 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // First login - show change password form
-  if (user.isFirstLogin && !user.isAdmin) {
+  // First login - show change password form (for parents only)
+  if (user.mustChangePassword && user.role === 'parent') {
     return (
       <div className="min-h-screen flex flex-col">
         <PhysicsBackground />
@@ -54,7 +64,7 @@ const AppContent: React.FC = () => {
   }
 
   // Admin dashboard
-  if (user.isAdmin) {
+  if (user.role === 'admin') {
     return (
       <div className="min-h-screen">
         <PhysicsBackground />
